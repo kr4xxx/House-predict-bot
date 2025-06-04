@@ -242,7 +242,7 @@ async def keep_alive(bot):
 # Точка входа
 # ─────────────────────────────
 def main():
-    TOKEN = "ВСТАВЬ_СЮДА_СВОЙ_ТОКЕН"  # ← ВСТАВЬ сюда свой токен БЕЗ os.getenv
+    TOKEN = "7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA"  # ← ВСТАВЬ сюда свой токен БЕЗ os.getenv
     app = ApplicationBuilder().token(TOKEN).build()
 
     # Хендлеры
