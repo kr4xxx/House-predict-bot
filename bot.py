@@ -330,7 +330,7 @@ async def keep_alive():
 # --------------------------------------------------
 # Application setup & launch
 # --------------------------------------------------
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TOKEN_HERE")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA")
 application = ApplicationBuilder().token(TOKEN).build()
 
 # Handlers
