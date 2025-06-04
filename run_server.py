@@ -1,16 +1,20 @@
-from flask import Flask
 import threading
-import bot  # Импортируем твой bot.py как модуль
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import os
+import bot  # Импорт твоего bot.py с функцией main()
 
-app = Flask(__name__)
+# Простой HTTP-сервер, чтобы Render "видел порт"
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'OK')
 
-@app.route('/')
-def index():
-    return 'Bot is running.'
+def run_http_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    server.serve_forever()
 
-def start_telegram_bot():
-    bot.main()
-
-if __name__ == '__main__':
-    threading.Thread(target=start_telegram_bot).start()
-    app.run(host='0.0.0.0', port=10000)
+# Запускаем Telegram-бота и HTTP-сервер в отдельных потоках
+threading.Thread(target=bot.main).start()
+run_http_server()
