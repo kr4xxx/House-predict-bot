@@ -208,24 +208,29 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await type_and_send(update, context, "❌ Оценка отменена. Напишите /start, чтобы начать заново.")
     return ConversationHandler.END
 
-TOKEN = '7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA'
-application = ApplicationBuilder().token(TOKEN).build()
+def main():
+    TOKEN = '7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA'
+    app = ApplicationBuilder().token(TOKEN).build()
 
-conv_handler = ConversationHandler(
-    entry_points=[CallbackQueryHandler(main_menu_handler, pattern='^estimate$')],
-    states={
-        SELECT_DISTRICT: [CallbackQueryHandler(select_district)],
-        INPUT_AREA: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_area)],
-        SELECT_APTYPE: [CallbackQueryHandler(select_aptype)],
-        INPUT_CURRENT_FLOOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_current_floor)],
-        INPUT_TOTAL_FLOORS: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_total_floors)],
-    },
-    fallbacks=[CommandHandler('cancel', cancel)],
-    allow_reentry=True
-)
+    conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(main_menu_handler, pattern='^estimate$')],
+        states={
+            SELECT_DISTRICT: [CallbackQueryHandler(select_district)],
+            INPUT_AREA: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_area)],
+            SELECT_APTYPE: [CallbackQueryHandler(select_aptype)],
+            INPUT_CURRENT_FLOOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_current_floor)],
+            INPUT_TOTAL_FLOORS: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_total_floors)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True
+    )
 
-application.add_handler(CommandHandler('start', start))
-application.add_handler(CallbackQueryHandler(main_menu_handler, pattern='^(about|support)$'))
-application.add_handler(conv_handler)
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(CallbackQueryHandler(main_menu_handler, pattern='^(about|support)$'))
+    app.add_handler(conv_handler)
 
-print("🚀 Бот готов к запуску")
+    print("🚀 Бот запущен...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
