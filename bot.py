@@ -232,5 +232,4 @@ def main():
     print("🚀 Бот запущен...")
     app.run_polling()
 
-if __name__ == '__main__':
-    main()
+application = app
