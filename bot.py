@@ -34,7 +34,7 @@ with open("xgb_model_package.pkl", "rb") as f:
 KEY_RATE = 21  # ключевая ставка ЦБ на момент обучения
 
 # ─────────────────────────────
-# Константы-словари
+# Словари и константы
 # ─────────────────────────────
 apartment_type_mapping = {
     "🏢 Студия": 0,
@@ -43,7 +43,6 @@ apartment_type_mapping = {
     "3️⃣ 3-комнатная": 3,
     "4️⃣ 4 и более": 4,
 }
-
 districts_name_to_num = {
     "Центр 🏙️": 36, "Первая речка 🌉": 35, "Патрокл 🌅": 34, "Эгершельд 🌊": 33,
     "Некрасовская 🏞️": 32, "Толстого (Буссе) 🌄": 31, "Третья рабочая ⚙️": 30,
@@ -57,9 +56,6 @@ districts_name_to_num = {
     "По-ов, Песчанный 🏖️": 1,
 }
 
-# ─────────────────────────────
-# Константы состояний диалога
-# ─────────────────────────────
 SELECT_DISTRICT, INPUT_AREA, SELECT_APTYPE, INPUT_CURRENT_FLOOR, INPUT_TOTAL_FLOORS = range(5)
 
 # ─────────────────────────────
@@ -76,7 +72,6 @@ def build_keyboard(options, row_width: int = 2) -> InlineKeyboardMarkup:
         rows.append(row)
     return InlineKeyboardMarkup(rows)
 
-
 def get_main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
@@ -86,19 +81,16 @@ def get_main_menu() -> InlineKeyboardMarkup:
         ]
     )
 
-# ─────────────────────────────
-# Универсальная функция «набираем + отвечаем»
-# ─────────────────────────────
 async def type_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
     await context.bot.send_chat_action(update.effective_chat.id, "typing")
     await asyncio.sleep(0.6)
     if update.message:
         await update.message.reply_text(text, **kwargs)
-    else:  # callback_query
+    else:
         await update.callback_query.message.reply_text(text, **kwargs)
 
 # ─────────────────────────────
-# Обработчики
+# Обработчики команд и шагов
 # ─────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -125,7 +117,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     if q.data == "support":
         await q.edit_message_text(
-            "🙏 Поддержите проект переводом на карту +7 924 137-95-84.\nСпасибо! ❤️",
+            "🙏 Поддержите проект переводом на карту +7 924 137-95-84. Спасибо! ❤️",
             reply_markup=get_main_menu(),
         )
 
@@ -137,10 +129,9 @@ async def select_district(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if district_num is None:
         await q.edit_message_text("❌ Неверный район. Попробуйте ещё раз.")
         return SELECT_DISTRICT
-    context.user_data["district_num"] = district_num
-    context.user_data["district_name"] = district_name
+    context.user_data.update(district_num=district_num, district_name=district_name)
     await q.edit_message_text(
-        f"📍 Выбран район: *{district_name}*\n\nВведите площадь квартиры (м²):",
+        f"📍 *{district_name}* выбран.\n\nВведите площадь квартиры (м²):",
         parse_mode=ParseMode.MARKDOWN,
     )
     return INPUT_AREA
@@ -152,7 +143,6 @@ async def input_area(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raise ValueError
     except ValueError:
         return await type_and_send(update, context, "⚠️ Введите положительное число.")
-
     context.user_data["area"] = area
     await type_and_send(
         update, context,
@@ -170,8 +160,7 @@ async def select_aptype(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if aptype_num is None:
         await q.edit_message_text("❌ Неверный тип. Попробуйте ещё раз.")
         return SELECT_APTYPE
-    context.user_data["aptype_num"] = aptype_num
-    context.user_data["aptype_name"] = aptype_name
+    context.user_data.update(aptype_num=aptype_num, aptype_name=aptype_name)
     await q.edit_message_text("🏢 Введите этаж квартиры:")
     return INPUT_CURRENT_FLOOR
 
@@ -182,7 +171,6 @@ async def input_current_floor(update: Update, context: ContextTypes.DEFAULT_TYPE
             raise ValueError
     except ValueError:
         return await type_and_send(update, context, "⚠️ Введите целое положительное число.")
-
     context.user_data["current_floor"] = cf
     await type_and_send(update, context, "🏗 Введите общее количество этажей:")
     return INPUT_TOTAL_FLOORS
@@ -194,14 +182,9 @@ async def input_total_floors(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if tf < cf or tf <= 0:
             raise ValueError
     except ValueError:
-        return await type_and_send(
-            update, context,
-            "⚠️ Общее количество этажей должно быть не меньше текущего.",
-        )
-
+        return await type_and_send(update, context, "⚠️ Этажей должно быть ≥ текущего.")
     context.user_data["total_floors"] = tf
 
-    # ── прогноз ──────────────────────────────
     price = predict_price(
         area=context.user_data["area"],
         aptype=context.user_data["aptype_num"],
@@ -219,16 +202,16 @@ async def input_total_floors(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Оценка отменена. /start — чтобы начать заново.")
+    await update.message.reply_text("❌ Оценка отменена. /start — сначала.")
     return ConversationHandler.END
 
 # ─────────────────────────────
 # ML-функция предсказания
 # ─────────────────────────────
 def predict_price(area, aptype, district_num, current_floor, total_floors):
-    district_desc = model_data["districts"][district_num]        # строковое описание
+    district_desc = model_data["districts"][district_num]
     df = pd.DataFrame({
-        "monster": [current_floor / total_floors * 100],          # признак из исходной модели
+        "monster": [current_floor / total_floors * 100],
         "Area": [area],
         "ApartmentType": [aptype],
         "CurrentFloor": [current_floor],
@@ -236,36 +219,35 @@ def predict_price(area, aptype, district_num, current_floor, total_floors):
         "KeyRate": [KEY_RATE],
         "DistrictDesc": [district_desc],
     })
-    # one-hot район
     enc_df = pd.DataFrame(
         model_data["encoder"].transform(df[["DistrictDesc"]]),
         columns=model_data["encoder"].get_feature_names_out(["DistrictDesc"]),
     )
     df = pd.concat([df.drop(columns="DistrictDesc"), enc_df], axis=1)
-    df = df[model_data["features_order"]]                         # тот самый порядок признаков
+    df = df[model_data["features_order"]]
     return model_data["model"].predict(df)[0]
 
 # ─────────────────────────────
-# keep-alive (не даём Render заснуть)
+# keep-alive: дешёвый вызов к API
 # ─────────────────────────────
 async def keep_alive(bot):
     while True:
         try:
-            await bot.get_me()           # дешёвый запрос к API TG
+            await bot.get_me()
         except Exception as exc:
             logger.warning("keep-alive error: %s", exc)
-        await asyncio.sleep(60 * 9)      # каждые 9 минут (< 15 мин лимита)
+        await asyncio.sleep(60 * 9)
 
 # ─────────────────────────────
 # Точка входа
 # ─────────────────────────────
 def main():
-    TOKEN = "7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA"  # <-- свой токен
-    application = ApplicationBuilder().token(TOKEN).build()
+    TOKEN = "ВСТАВЬ_СЮДА_СВОЙ_ТОКЕН"  # ← ВСТАВЬ сюда свой токен БЕЗ os.getenv
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    # диалог
-    conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(main_menu_handler, pattern="^(estimate|about|support)$")],
+    # Хендлеры
+    conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(main_menu_handler)],
         states={
             SELECT_DISTRICT: [CallbackQueryHandler(select_district)],
             INPUT_AREA: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_area)],
@@ -275,13 +257,17 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(conv)
 
-    # запускаем keep-alive таск ДО блокирующего polling
-    asyncio.get_event_loop().create_task(keep_alive(application.bot))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(conv_handler)
 
-    application.run_polling()
+    # Keep-alive loop
+    asyncio.get_event_loop().create_task(keep_alive(app.bot))
 
+    app.run_polling()
+
+# ─────────────────────────────
+# Запуск
+# ─────────────────────────────
 if __name__ == "__main__":
     main()
