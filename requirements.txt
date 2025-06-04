@@ -1,6 +1,20 @@
-﻿python-telegram-bot==20.3
+# --- Telegram-бот ---
+python-telegram-bot==20.3
+httpx==0.24.1          # явная зависимость PTB (тянет httpcore, sniffio)
+
+# --- Data stack ---
 pandas==2.2.1
-xgboost==2.1.3
+numpy==1.26.4          # нужен и pandas, и scikit-learn, и xgboost
+scipy==1.15.3          # нужен xgboost и иногда scikit-learn
+
 scikit-learn==1.5.1
-flask
-aiohttp==3.9.5
+joblib==1.5.1          # явная зависимость scikit-learn
+threadpoolctl==3.6.0   # явная зависимость scikit-learn
+
+xgboost==2.1.3
+
+# --- Вспомогательные библиотеки, которые pandas подтягивает, но лучше
+#     зафиксировать явно: это ускорит установку и избежит неожиданных версий.
+python-dateutil==2.9.0.post0
+pytz==2025.2
+tzdata==2025.2
