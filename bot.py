@@ -94,7 +94,7 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                       reply_markup=get_main_menu())
 
     elif query.data == 'support':
-        await query.edit_message_text("🙏 Поддержите проект переводом на карту: 1234 1234 1234\n\nСпасибо за вашу помощь ❤️",
+        await query.edit_message_text("🙏 Поддержите проект переводом на карту: +79241379584\n\nСпасибо за вашу помощь ❤️",
                                       reply_markup=get_main_menu())
 
 async def select_district(update: Update, context: ContextTypes.DEFAULT_TYPE):
