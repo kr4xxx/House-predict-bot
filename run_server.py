@@ -1,20 +1,27 @@
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import asyncio
 import os
-import bot  # Импорт твоего bot.py с функцией main()
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
+from bot import application  # Импортируем объект Application
 
-# Простой HTTP-сервер, чтобы Render "видел порт"
-class SimpleHandler(BaseHTTPRequestHandler):
+# HTTP-сервер, чтобы Render видел порт
+class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b'OK')
+        self.wfile.write(b"Bot is running!")
 
 def run_http_server():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    server = HTTPServer(("0.0.0.0", port), Handler)
     server.serve_forever()
 
-# Запускаем Telegram-бота и HTTP-сервер в отдельных потоках
-threading.Thread(target=bot.main).start()
-run_http_server()
+async def run_bot():
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    await application.updater.idle()
+
+if __name__ == "__main__":
+    Thread(target=run_http_server).start()
+    asyncio.run(run_bot())
