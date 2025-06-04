@@ -1,6 +1,7 @@
 import logging
 import pickle
 import asyncio
+import os
 
 import pandas as pd
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -15,81 +16,65 @@ from telegram.ext import (
     filters,
 )
 
-# Logger setup
+# ─────────────────────────────
+# Логирование
+# ─────────────────────────────
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
-# Load ML model package
+# ─────────────────────────────
+# Загрузка пакета модели
+# ─────────────────────────────
 with open("xgb_model_package.pkl", "rb") as f:
-    model_data = pickle.load(f)
+    model_data = pickle.load(f)  # dict: model / encoder / districts / features_order
 
-KEY_RATE = 21  # ЦБ ключевая ставка на дату обучения модели
+KEY_RATE = 21  # ключевая ставка ЦБ на момент обучения
 
-# Constant mappings
+# ─────────────────────────────
+# Константы-словари
+# ─────────────────────────────
 apartment_type_mapping = {
     "🏢 Студия": 0,
     "1️⃣ 1-комнатная": 1,
     "2️⃣ 2-комнатная": 2,
     "3️⃣ 3-комнатная": 3,
-    "4️⃣ 4 и более комнат": 4,
+    "4️⃣ 4 и более": 4,
 }
 
 districts_name_to_num = {
-    "Центр 🏙️": 36,
-    "Первая речка 🌉": 35,
-    "Патрокл 🌅": 34,
-    "Эгершельд 🌊": 33,
-    "Некрасовская 🏞️": 32,
-    "Толстого (Буссе) 🌄": 31,
-    "Третья рабочая ⚙️": 30,
-    "Снеговая падь ❄️": 29,
-    "Седанка 🌲": 28,
-    "Заря 🌇": 27,
-    "Столетие 📍": 26,
-    "Чуркин 🌁": 25,
-    "Трудовое 🏗️": 24,
-    "Фадеева 🚧": 23,
-    "Вторая речка 🛤️": 22,
-    "БАМ 🚧": 21,
-    "Садгород 🌿": 20,
-    "Чайка 🐦": 19,
-    "Океанская 🌊": 18,
-    "Гайдамак 🏘️": 17,
-    "Баляева 🧭": 16,
-    "64, 71 микрорайоны 🏢": 15,
-    "Луговая 🌾": 14,
-    "Тихая 🤫": 13,
-    "Снеговая ❄️": 12,
-    "Сахарный ключ 🍬": 11,
-    "Спутник 🛰️": 10,
-    "Борисенко 🛠️": 9,
-    "Трудовая 🧱": 8,
-    "Первореченский 📍": 7,
-    "Весенняя 🌸": 6,
-    "Пригород 🏞️": 5,
-    "Попова 🏝️": 4,
-    "Горностай 🐿️": 3,
-    "Русский 🏝️": 2,
+    "Центр 🏙️": 36, "Первая речка 🌉": 35, "Патрокл 🌅": 34, "Эгершельд 🌊": 33,
+    "Некрасовская 🏞️": 32, "Толстого (Буссе) 🌄": 31, "Третья рабочая ⚙️": 30,
+    "Снеговая падь ❄️": 29, "Седанка 🌲": 28, "Заря 🌇": 27, "Столетие 📍": 26,
+    "Чуркин 🌁": 25, "Трудовое 🏗️": 24, "Фадеева 🚧": 23, "Вторая речка 🛤️": 22,
+    "БАМ 🚧": 21, "Садгород 🌿": 20, "Чайка 🐦": 19, "Океанская 🌊": 18,
+    "Гайдамак 🏘️": 17, "Баляева 🧭": 16, "64, 71 мкр. 🏢": 15, "Луговая 🌾": 14,
+    "Тихая 🤫": 13, "Снеговая ❄️": 12, "Сахарный ключ 🍬": 11, "Спутник 🛰️": 10,
+    "Борисенко 🛠️": 9, "Трудовая 🧱": 8, "Первореченский 📍": 7, "Весенняя 🌸": 6,
+    "Пригород 🏞️": 5, "Попова 🏝️": 4, "Горностай 🐿️": 3, "Русский 🏝️": 2,
     "По-ов, Песчанный 🏖️": 1,
 }
 
-# Conversation state constants
+# ─────────────────────────────
+# Константы состояний диалога
+# ─────────────────────────────
 SELECT_DISTRICT, INPUT_AREA, SELECT_APTYPE, INPUT_CURRENT_FLOOR, INPUT_TOTAL_FLOORS = range(5)
 
-
+# ─────────────────────────────
+# Вспомогательные UI-функции
+# ─────────────────────────────
 def build_keyboard(options, row_width: int = 2) -> InlineKeyboardMarkup:
-    keyboard, row = [], []
-    for i, option in enumerate(options, 1):
-        row.append(InlineKeyboardButton(option, callback_data=option))
+    rows, row = [], []
+    for i, opt in enumerate(options, 1):
+        row.append(InlineKeyboardButton(opt, callback_data=opt))
         if i % row_width == 0:
-            keyboard.append(row)
+            rows.append(row)
             row = []
     if row:
-        keyboard.append(row)
-    return InlineKeyboardMarkup(keyboard)
+        rows.append(row)
+    return InlineKeyboardMarkup(rows)
 
 
 def get_main_menu() -> InlineKeyboardMarkup:
@@ -101,16 +86,20 @@ def get_main_menu() -> InlineKeyboardMarkup:
         ]
     )
 
-
+# ─────────────────────────────
+# Универсальная функция «набираем + отвечаем»
+# ─────────────────────────────
 async def type_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await context.bot.send_chat_action(update.effective_chat.id, "typing")
     await asyncio.sleep(0.6)
     if update.message:
         await update.message.reply_text(text, **kwargs)
-    elif update.callback_query:
+    else:  # callback_query
         await update.callback_query.message.reply_text(text, **kwargs)
 
-
+# ─────────────────────────────
+# Обработчики
+# ─────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
@@ -119,47 +108,42 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.MARKDOWN,
     )
 
-
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "estimate":
-        keyboard = build_keyboard(list(districts_name_to_num.keys()))
-        await query.edit_message_text(
+    q = update.callback_query
+    await q.answer()
+    if q.data == "estimate":
+        await q.edit_message_text(
             "🌍 *Выберите район квартиры:*",
-            reply_markup=keyboard,
+            reply_markup=build_keyboard(districts_name_to_num.keys()),
             parse_mode=ParseMode.MARKDOWN,
         )
         return SELECT_DISTRICT
-    elif query.data == "about":
-        await query.edit_message_text(
-            "🏠 Мы — сервис оценки недвижимости во Владивостоке с помощью ML. Просто, быстро и бесплатно!",
+    if q.data == "about":
+        await q.edit_message_text(
+            "🏠 Мы — сервис оценки недвижимости во Владивостоке, использующий ML-модель XGBoost.",
             reply_markup=get_main_menu(),
         )
-    elif query.data == "support":
-        await query.edit_message_text(
-            "🙏 Поддержите проект переводом на карту: +79241379584\n\nСпасибо за вашу помощь ❤️",
+    if q.data == "support":
+        await q.edit_message_text(
+            "🙏 Поддержите проект переводом на карту +7 924 137-95-84.\nСпасибо! ❤️",
             reply_markup=get_main_menu(),
         )
-
 
 async def select_district(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    district_name = query.data
+    q = update.callback_query
+    await q.answer()
+    district_name = q.data
     district_num = districts_name_to_num.get(district_name)
     if district_num is None:
-        await query.edit_message_text("❌ Неверный выбор района. Попробуйте ещё раз.")
+        await q.edit_message_text("❌ Неверный район. Попробуйте ещё раз.")
         return SELECT_DISTRICT
     context.user_data["district_num"] = district_num
     context.user_data["district_name"] = district_name
-
-    await query.edit_message_text(
+    await q.edit_message_text(
         f"📍 Выбран район: *{district_name}*\n\nВведите площадь квартиры (м²):",
         parse_mode=ParseMode.MARKDOWN,
     )
     return INPUT_AREA
-
 
 async def input_area(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -167,35 +151,29 @@ async def input_area(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if area <= 0:
             raise ValueError
     except ValueError:
-        return await type_and_send(update, context, "⚠️ Введите положительное число для площади.")
+        return await type_and_send(update, context, "⚠️ Введите положительное число.")
 
     context.user_data["area"] = area
-    keyboard = build_keyboard(list(apartment_type_mapping.keys()))
     await type_and_send(
-        update,
-        context,
-        "🏘️ *Выберите тип квартиры:*",
-        reply_markup=keyboard,
+        update, context,
+        "🏘 *Выберите тип квартиры:*",
+        reply_markup=build_keyboard(apartment_type_mapping.keys()),
         parse_mode=ParseMode.MARKDOWN,
     )
     return SELECT_APTYPE
 
-
 async def select_aptype(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    aptype_name = query.data
+    q = update.callback_query
+    await q.answer()
+    aptype_name = q.data
     aptype_num = apartment_type_mapping.get(aptype_name)
     if aptype_num is None:
-        await query.edit_message_text("❌ Неверный тип. Попробуйте снова.")
+        await q.edit_message_text("❌ Неверный тип. Попробуйте ещё раз.")
         return SELECT_APTYPE
-
     context.user_data["aptype_num"] = aptype_num
     context.user_data["aptype_name"] = aptype_name
-
-    await query.edit_message_text("🏢 Введите этаж квартиры:")
+    await q.edit_message_text("🏢 Введите этаж квартиры:")
     return INPUT_CURRENT_FLOOR
-
 
 async def input_current_floor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -203,86 +181,90 @@ async def input_current_floor(update: Update, context: ContextTypes.DEFAULT_TYPE
         if cf <= 0:
             raise ValueError
     except ValueError:
-        return await type_and_send(update, context, "⚠️ Введите положительное целое число для этажа.")
+        return await type_and_send(update, context, "⚠️ Введите целое положительное число.")
 
     context.user_data["current_floor"] = cf
-    await type_and_send(update, context, "🏗️ Введите общее количество этажей в доме:")
+    await type_and_send(update, context, "🏗 Введите общее количество этажей:")
     return INPUT_TOTAL_FLOORS
-
 
 async def input_total_floors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         tf = int(update.message.text)
         cf = context.user_data["current_floor"]
         if tf < cf or tf <= 0:
-            return await type_and_send(
-                update,
-                context,
-                "⚠️ Общее количество этажей должно быть больше или равно текущему.",
-            )
+            raise ValueError
     except ValueError:
-        return await type_and_send(update, context, "⚠️ Введите положительное целое число для этажности.")
+        return await type_and_send(
+            update, context,
+            "⚠️ Общее количество этажей должно быть не меньше текущего.",
+        )
 
     context.user_data["total_floors"] = tf
 
+    # ── прогноз ──────────────────────────────
     price = predict_price(
         area=context.user_data["area"],
         aptype=context.user_data["aptype_num"],
-        district=context.user_data["district_num"],
+        district_num=context.user_data["district_num"],
         current_floor=context.user_data["current_floor"],
         total_floors=context.user_data["total_floors"],
     )
-    price_rounded = int(price)
-
-    reply_text = (
-        f"🏠 *Примерная рыночная цена квартиры:*\n\n"
-        f"*{price_rounded:,}* ₽\n\n"
-        f"Данные района: {context.user_data['district_name']}\n"
-        f"Площадь: {context.user_data['area']} м²\n"
-        f"Тип квартиры: {context.user_data['aptype_name']}\n"
-        f"Этаж: {context.user_data['current_floor']} из {context.user_data['total_floors']}"
+    dev = int(price * 0.08)
+    await type_and_send(
+        update, context,
+        f"💰 *Оценка:* {int(price):,} ₽ ± {dev:,} ₽".replace(",", " "),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_main_menu(),
     )
-    await type_and_send(update, context, reply_text, parse_mode=ParseMode.MARKDOWN)
-    await type_and_send(update, context, "Вы можете начать заново командой /start или нажать на кнопку ниже.", reply_markup=get_main_menu())
-
     return ConversationHandler.END
-
-
-def predict_price(area, aptype, district, current_floor, total_floors):
-    input_df = pd.DataFrame(
-        {
-            "area": [area],
-            "aptype": [aptype],
-            "district": [district],
-            "current_floor": [current_floor],
-            "total_floors": [total_floors],
-            "key_rate": [KEY_RATE],
-        }
-    )
-    prediction = model_data["model"].predict(input_df)[0]
-    return prediction
-
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Отмена. Если хотите, можете начать заново командой /start.")
+    await update.message.reply_text("❌ Оценка отменена. /start — чтобы начать заново.")
     return ConversationHandler.END
 
+# ─────────────────────────────
+# ML-функция предсказания
+# ─────────────────────────────
+def predict_price(area, aptype, district_num, current_floor, total_floors):
+    district_desc = model_data["districts"][district_num]        # строковое описание
+    df = pd.DataFrame({
+        "monster": [current_floor / total_floors * 100],          # признак из исходной модели
+        "Area": [area],
+        "ApartmentType": [aptype],
+        "CurrentFloor": [current_floor],
+        "TotalFloors": [total_floors],
+        "KeyRate": [KEY_RATE],
+        "DistrictDesc": [district_desc],
+    })
+    # one-hot район
+    enc_df = pd.DataFrame(
+        model_data["encoder"].transform(df[["DistrictDesc"]]),
+        columns=model_data["encoder"].get_feature_names_out(["DistrictDesc"]),
+    )
+    df = pd.concat([df.drop(columns="DistrictDesc"), enc_df], axis=1)
+    df = df[model_data["features_order"]]                         # тот самый порядок признаков
+    return model_data["model"].predict(df)[0]
 
-async def keep_alive(app):
+# ─────────────────────────────
+# keep-alive (не даём Render заснуть)
+# ─────────────────────────────
+async def keep_alive(bot):
     while True:
-        await asyncio.sleep(60 * 15)
-        for chat_id in app.chat_data.keys():
-            try:
-                await app.bot.send_chat_action(chat_id=chat_id, action="typing")
-            except Exception:
-                pass
+        try:
+            await bot.get_me()           # дешёвый запрос к API TG
+        except Exception as exc:
+            logger.warning("keep-alive error: %s", exc)
+        await asyncio.sleep(60 * 9)      # каждые 9 минут (< 15 мин лимита)
 
-
+# ─────────────────────────────
+# Точка входа
+# ─────────────────────────────
 def main():
-    TOKEN = "7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA"  # Замените на свой токен
+    TOKEN = "7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA"  # <-- свой токен
     application = ApplicationBuilder().token(TOKEN).build()
 
-    conv_handler = ConversationHandler(
+    # диалог
+    conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(main_menu_handler, pattern="^(estimate|about|support)$")],
         states={
             SELECT_DISTRICT: [CallbackQueryHandler(select_district)],
@@ -293,13 +275,13 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
-
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(conv_handler)
+    application.add_handler(conv)
 
-    # Запуск бота
+    # запускаем keep-alive таск ДО блокирующего polling
+    asyncio.get_event_loop().create_task(keep_alive(application.bot))
+
     application.run_polling()
-
 
 if __name__ == "__main__":
     main()
