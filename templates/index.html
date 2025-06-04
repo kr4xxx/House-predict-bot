@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Прогноз стоимости квартиры</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f8f9fa;
+        font-family: "Arial", sans-serif;
+        padding: 20px;
+      }
+      .container {
+        max-width: 700px;
+        margin: 0 auto;
+        background: #fff;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        border-radius: 8px;
+      }
+      h1,
+      h2 {
+        text-align: center;
+        color: #343a40;
+      }
+      .btn {
+        display: block;
+        width: 100%;
+      }
+      .result {
+        margin-top: 20px;
+      }
+      .result p {
+        font-size: 18px;
+        color: #495057;
+      }
+      .error-message {
+        color: red;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Прогноз стоимости квартиры</h1>
+      <form id="prediction-form">
+        <div class="mb-3">
+          <label for="area" class="form-label">Площадь (кв. м):</label>
+          <input
+            type="number"
+            step="0.1"
+            class="form-control"
+            id="area"
+            name="area"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="apartment_type" class="form-label">Тип квартиры:</label>
+          <select
+            class="form-select"
+            id="apartment_type"
+            name="apartment_type"
+            required
+          >
+            <option value="1">Гостинка</option>
+            <option value="2">Студия</option>
+            <option value="3">1 комн.</option>
+            <option value="4">2 комн.</option>
+            <option value="5">3 комн.</option>
+            <option value="6">4 комн.</option>
+            <option value="7">5 комн.</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="current_floor" class="form-label">Этаж:</label>
+          <input
+            type="number"
+            class="form-control"
+            id="current_floor"
+            name="current_floor"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="total_floors" class="form-label">
+            Количество этажей:
+          </label>
+          <input
+            type="number"
+            class="form-control"
+            id="total_floors"
+            name="total_floors"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="key_rate" class="form-label">Ключевая ставка:</label>
+          <input
+            type="number"
+            step="0.01"
+            class="form-control"
+            id="key_rate"
+            name="key_rate"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="district" class="form-label">Район:</label>
+          <select class="form-select" id="district" name="district" required>
+            {% for key, name in districts.items() %}
+            <option value="{{ key }}">{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Рассчитать</button>
+      </form>
+      <div class="result mt-4" id="result">
+        <p id="predicted-price"></p>
+        <p id="mean-error"></p>
+      </div>
+    </div>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      document
+        .getElementById("prediction-form")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+
+          const formData = new FormData(event.target);
+          const data = Object.fromEntries(formData.entries());
+
+          try {
+            const response = await fetch("/predict", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(data),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+              document.getElementById("predicted-price").textContent =
+                "Оцененная стоимость: " + result.predicted_price + " руб.";
+              document.getElementById("mean-error").textContent =
+                "В среднем цена ошибается на " + result.mape + "%.";
+            } else {
+              document.getElementById("predicted-price").textContent = "";
+              document.getElementById("mean-error").textContent = "";
+              alert("Ошибка: " + result.error);
+            }
+          } catch (error) {
+            console.error("Ошибка запроса:", error);
+            alert("Произошла ошибка при отправке запроса.");
+          }
+        });
+    </script>
+  </body>
+</html>
+
