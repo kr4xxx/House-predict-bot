@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: house-predict-bot
+    env: python
+    buildCommand: ""
+    startCommand: ./start.sh
+    repo: https://github.com/kr4xxx/House-predict-bot
+    branch: main
+    autoDeploy: true
