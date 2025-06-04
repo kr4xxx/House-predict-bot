@@ -249,7 +249,6 @@ async def input_total_floors(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def predict_price(area, aptype, district, current_floor, total_floors):
-    # Формируем DataFrame с нужными признаками для модели
     input_df = pd.DataFrame(
         {
             "area": [area],
@@ -260,33 +259,31 @@ def predict_price(area, aptype, district, current_floor, total_floors):
             "key_rate": [KEY_RATE],
         }
     )
-    # Прогноз модели
-    pred = model_data["model"].predict(input_df)[0]
-    return pred
+    prediction = model_data["model"].predict(input_df)[0]
+    return prediction
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Операция отменена. Чтобы начать заново, введите /start.")
+    await update.message.reply_text("❌ Отмена. Если хотите, можете начать заново командой /start.")
     return ConversationHandler.END
 
 
-async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❓ Неизвестная команда. Попробуйте /start.")
-
-
-async def keep_alive_task():
+async def keep_alive(app):
     while True:
-        await asyncio.sleep(3600)  # Просто чтобы приложение не заснуло
+        await asyncio.sleep(60 * 15)
+        for chat_id in app.chat_data.keys():
+            try:
+                await app.bot.send_chat_action(chat_id=chat_id, action="typing")
+            except Exception:
+                pass
 
 
 def main():
-    # Используем жестко прописанный токен
-    TOKEN = "7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA"
-
+    TOKEN = "YOUR_BOT_TOKEN_HERE"  # Замените на свой токен
     application = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start), CallbackQueryHandler(main_menu_handler, pattern="^(estimate|about|support)$")],
+        entry_points=[CallbackQueryHandler(main_menu_handler, pattern="^(estimate|about|support)$")],
         states={
             SELECT_DISTRICT: [CallbackQueryHandler(select_district)],
             INPUT_AREA: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_area)],
@@ -295,18 +292,14 @@ def main():
             INPUT_TOTAL_FLOORS: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_total_floors)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        allow_reentry=True,
     )
 
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(conv_handler)
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
-    # Запуск фоновой задачи для keep alive
-    application.job_queue.run_repeating(lambda ctx: None, interval=3600, first=0)
-
+    # Запуск бота
     application.run_polling()
 
 
 if __name__ == "__main__":
     main()
-
