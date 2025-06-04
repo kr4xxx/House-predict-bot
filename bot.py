@@ -279,7 +279,7 @@ async def keep_alive(app):
 
 
 def main():
-    TOKEN = "YOUR_BOT_TOKEN_HERE"  # Замените на свой токен
+    TOKEN = "7497598617:AAGMYwmDM2lyXhFGb_DaJisyByB7EtbuadA"  # Замените на свой токен
     application = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
